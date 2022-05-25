@@ -23,6 +23,7 @@ async function run() {
         await client.connect();
         const partsCollection = client.db('electronic-express').collection('parts');
         const orderCollection = client.db('electronic-express').collection('orders');
+        const reviewCollection = client.db('electronic-express').collection('reviews');
       
 
         app.get('/parts', async(req, res) =>{
@@ -30,6 +31,14 @@ async function run() {
             const cursor = partsCollection.find(query);
             const parts = await cursor.toArray();
             res.send(parts);
+
+        })
+
+        app.get('/reviews', async(req, res) =>{
+            const query ={};
+            const cursor = reviewCollection.find(query);
+            const reviews = await cursor.toArray();
+            res.send(reviews);
 
         })
 
@@ -45,8 +54,43 @@ async function run() {
           app.post('/order', async (req, res) => {
             const newService = req.body;
             const result = await orderCollection.insertOne(newService);
-            res.send(result);
+            res.send({success: true, result});
           });
+
+          app.get('/order', async(req, res) =>{
+            const query ={};
+            const cursor = orderCollection.find(query);
+            const reviews = await cursor.toArray();
+            res.send(reviews);
+
+        })
+
+        //   app.get('/order', async(req, res) =>{
+        //     const user = req.query.userEmail;
+        //     console.log(user);
+        //     const query = {userEmail: user}
+        //     const cursor = orderCollection.find(query);
+        //     const orders = await cursor.toArray();
+        //     res.send(orders);
+
+        // })
+
+
+          app.put('/onepart/:id', async(req, res) =>{
+            const id = req.params.id;
+            const updatedItem = req.body;
+            console.log(updatedItem)
+            const filter = {_id: ObjectId(id)};
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    available: updatedItem.available
+                }
+            };
+            const result = await partsCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
+      
+        })
     }
     finally {
 
