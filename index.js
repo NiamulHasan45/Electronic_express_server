@@ -4,6 +4,7 @@ require('dotenv').config()
 const app = express()
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+var jwt = require('jsonwebtoken');
 
 
 app.use(cors())
@@ -17,6 +18,23 @@ const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASS}@clu
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true, serverApi: ServerApiVersion.v1 });
 
 
+
+// function verifyJWT(req, res, next) {
+//     const authHeader = req.headers.authorization;
+//     if (!authHeader) {
+//       return res.status(401).send({ message: 'UnAuthorized access' });
+//     }
+//     const token = authHeader.split(' ')[1];
+//     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, function (err, decoded) {
+//       if (err) {
+//         return res.status(403).send({ message: 'Forbidden access' })
+//       }
+//       req.decoded = decoded;
+//       next();
+//     });
+//   }
+
+
 async function run() {
 
     try {
@@ -24,6 +42,39 @@ async function run() {
         const partsCollection = client.db('electronic-express').collection('parts');
         const orderCollection = client.db('electronic-express').collection('orders');
         const reviewCollection = client.db('electronic-express').collection('reviews');
+        const userCollection = client.db('electronic-express').collection('users');
+
+        app.put('/user/:email', async(req, res)=>{
+            const email = req.params.email;
+            const user = req.body;
+            console.log(user);
+            const filter = {email: email}
+            const options = {upsert: true};
+            const updateDoc ={
+                $set: user,
+            }
+            const result = await userCollection.updateOne(filter, updateDoc, options);
+            const token = jwt.sign({email:email}, process.env.ACCESS_TOKEN_SECRET,  {expiresIn: '1h'} )
+            res.send({result, token});
+        })
+
+        app.put('/onepart/:id', async(req, res) =>{
+            const id = req.params.id;
+            const updatedItem = req.body;
+            console.log(updatedItem)
+            const filter = {_id: ObjectId(id)};
+            const options = { upsert: true };
+            const updatedDoc = {
+                $set: {
+                    available: updatedItem.available
+                }
+            };
+            const result = await partsCollection.updateOne(filter, updatedDoc, options);
+            res.send(result);
+      
+        })
+
+        
       
 
         app.get('/parts', async(req, res) =>{
@@ -42,6 +93,12 @@ async function run() {
 
         })
 
+        app.post('/reviews', async(req, res)=>{
+            const newReview = req.body;
+            const result = await reviewCollection.insertOne(newReview);
+            res.send({success: true, result});
+        })
+
         //Find a specific item
         app.get('/onepart/:id', async (req, res) => {
             const id = req.params.id;
@@ -57,23 +114,22 @@ async function run() {
             res.send({success: true, result});
           });
 
-          app.get('/order', async(req, res) =>{
-            const query ={};
-            const cursor = orderCollection.find(query);
-            const reviews = await cursor.toArray();
-            res.send(reviews);
-
-        })
-
         //   app.get('/order', async(req, res) =>{
-        //     const user = req.query.userEmail;
-        //     console.log(user);
-        //     const query = {userEmail: user}
+        //     const query ={};
         //     const cursor = orderCollection.find(query);
-        //     const orders = await cursor.toArray();
-        //     res.send(orders);
+        //     const reviews = await cursor.toArray();
+        //     res.send(reviews);
 
         // })
+
+          app.get('/order', async(req, res) =>{
+            const user = req.query.userEmail;
+            const query = {userEmail: user}
+            const cursor = orderCollection.find(query);
+            const orders = await cursor.toArray();
+            res.send(orders);
+
+        })
 
 
           app.put('/onepart/:id', async(req, res) =>{
