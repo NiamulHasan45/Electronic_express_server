@@ -5,7 +5,9 @@ const app = express()
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 var jwt = require('jsonwebtoken');
-const res = require('express/lib/response');
+const stripe = require('stripe')(process.env.STRIPE_KEY);
+
+
 
 
 app.use(cors())
@@ -71,7 +73,7 @@ async function run() {
                 const result = await userCollection.updateOne(filter, updateDoc);
                 res.send(result);
             }
-            else{
+            else {
 
             }
 
@@ -79,12 +81,11 @@ async function run() {
 
         app.get('/admin/:email', async (req, res) => {
             const email = req.params.email;
-            console.log(email);
             const user = await userCollection.findOne({ email: email });
             const isAdmin = user.role === 'admin';
             res.send({ admin: isAdmin })
-          })
-      
+        })
+
 
         app.get('/user', verifyJWT, async (req, res) => {
             const user = await userCollection.find({}).toArray();
@@ -107,12 +108,27 @@ async function run() {
 
         })
 
+        app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+            const service = req.body;
+            const price = service.price;
+            const amount = price * 100;
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: amount,
+                currency: 'usd',
+                payment_method_types: ['card']
+            })
+            res.send({ clientSecret: paymentIntent.client_secret })
+        });
+
+
+
+
         app.delete('/onepart/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: ObjectId(id) };
             const result = await partsCollection.deleteOne(query);
             res.send(result);
-          });
+        });
 
 
 
@@ -127,7 +143,6 @@ async function run() {
 
         app.post('/parts', verifyJWT, async (req, res) => {
             const newProduct = req.body;
-            console.log(newProduct);
             const result = await partsCollection.insertOne(newProduct);
             res.send({ success: true, result });
 
@@ -162,13 +177,13 @@ async function run() {
             res.send({ success: true, result });
         });
 
-        //   app.get('/order', async(req, res) =>{
-        //     const query ={};
-        //     const cursor = orderCollection.find(query);
-        //     const reviews = await cursor.toArray();
-        //     res.send(reviews);
+        app.get('/order/:id', verifyJWT, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: ObjectId(id) };
+            const service = await orderCollection.findOne(query);
+            res.send(service);
 
-        // })
+        })
 
         app.get('/order', verifyJWT, async (req, res) => {
             const user = req.query.userEmail;
@@ -191,7 +206,6 @@ async function run() {
         app.put('/onepart/:id', async (req, res) => {
             const id = req.params.id;
             const updatedItem = req.body;
-            console.log(updatedItem)
             const filter = { _id: ObjectId(id) };
             const options = { upsert: true };
             const updatedDoc = {
